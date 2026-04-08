@@ -1,0 +1,12 @@
+{
+    "header_row": 3,
+    "mode": 2,
+    "mode1_columns": [],
+    "mode1_headers": [],
+    "mode2_columns": [],
+    "mode2_headers": [
+        "部门",
+        "岗位",
+        "职工号"
+    ]
+}

@@ -1,0 +1,17 @@
+{
+    "header_row": 3,
+    "enabled_modes": [
+        "mode1",
+        "mode2"
+    ],
+    "mode1_columns": [],
+    "mode1_headers": [
+        "个人所得税"
+    ],
+    "mode2_columns": [],
+    "mode2_headers": [
+        "部门",
+        "岗位",
+        "职工号"
+    ]
+}
