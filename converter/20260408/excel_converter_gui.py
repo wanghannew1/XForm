@@ -17,6 +17,7 @@ from tkinterdnd2 import DND_FILES
 import xlrd
 import xlsxwriter
 from typing import Dict, List, Tuple, Any, Optional
+import openpyxl
 
 
 # ==================== 配置部分 ====================
@@ -206,7 +207,7 @@ def _read_source_file_xlsx(filepath: str, config: Dict = None) -> Tuple[Dict[str
     data_start = source_config.get('data_start_row', 5)
     skip_keyword = source_config.get('skip_keyword', '合计')
     
-    import openpyxl
+
     book = openpyxl.load_workbook(filepath, data_only=True)
     sheet = book.active
     
