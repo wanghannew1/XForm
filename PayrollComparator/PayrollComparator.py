@@ -80,6 +80,8 @@ def read_phone_table(filepath, logger=None):
     for _, row in df.iterrows():
         id_num = str(row[id_col]).strip()
         phone = str(row[phone_col]).strip()
+        if phone and '.' in phone and phone.endswith('.0'):
+            phone = phone[:-2]
         if id_num and id_num != "nan":
             phone_dict[id_num] = phone
     
@@ -142,8 +144,6 @@ def generate_report(diff_result, phone_dict, output_file, logger=None):
         if logger:
             logger(msg)
     
-    log(f"[INFO] 生成报告: {output_file}")
-    
     wb = Workbook()
     
     ws_new = wb.active
@@ -169,8 +169,20 @@ def generate_report(diff_result, phone_dict, output_file, logger=None):
         if person["身份证"] not in phone_dict:
             ws_missing.append([person["姓名"], person["身份证"], "未找到对应电话"])
     
+    for sheet in wb.worksheets:
+        for column in sheet.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except:
+                    pass
+            adjusted_width = min(max_length * 2 + 5, 80)
+            sheet.column_dimensions[column_letter].width = adjusted_width
+    
     wb.save(output_file)
-    log(f"[INFO] 报告已保存: {output_file}")
 
 
 def get_month_from_filename(filepath):
@@ -246,11 +258,6 @@ def create_gui():
             self.root.resizable(True, True)
             self.has_dnd = HAS_DND
             
-            self.prev_file = StringVar()
-            self.curr_file = StringVar()
-            self.phone_file = StringVar()
-            self.output_file = StringVar()
-            
             self.log_text = None
             self.result_data = None
             
@@ -271,8 +278,9 @@ def create_gui():
         def load_saved_config(self):
             """加载保存的配置"""
             config = load_config()
-            if "phone_file" in config:
-                self.phone_file.set(config["phone_file"])
+            if "phone_file" in config and config["phone_file"]:
+                self.phone_file.delete(0, "end")
+                self.phone_file.insert(0, config["phone_file"])
                 self.log("[INFO] 已加载保存的电话信息表路径")
         
         def save_config(self):
@@ -283,28 +291,29 @@ def create_gui():
                 config["phone_file"] = phone_path
                 save_config(config)
         
-        def create_drop_target(self, entry, label_text):
+        def create_drop_target(self, parent, row, label_text):
             """创建支持拖拽的输入框"""
-            frame = Frame(entry.master)
-            frame.pack(fill="x", pady=2)
+            label = Label(parent, text=label_text, anchor="e", width=15, font=("微软雅黑", 10))
+            label.grid(row=row, column=0, sticky="e", padx=(10, 5), pady=5)
             
-            label = Label(frame, text=label_text, anchor="w", width=15)
-            label.pack(side="left", padx=(0, 10))
+            entry = Entry(parent, font=("微软雅黑", 10), bd=2, relief="solid", 
+                         highlightthickness=1, highlightbackground="#CCCCCC", width=30)
+            entry.grid(row=row, column=1, sticky="ew", padx=5)
             
-            entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
+            btn = Button(parent, text="选择文件", font=("微软雅黑", 9), command=lambda: self.select_file(entry))
+            btn.grid(row=row, column=2, padx=5)
             
-            btn = Button(frame, text="选择文件", command=lambda: self.select_file(entry))
-            btn.pack(side="right")
+            parent.grid_columnconfigure(1, weight=1)
             
             if self.has_dnd:
                 try:
                     from tkinterdnd2 import DND_FILES
-                    entry.drop_target_id = entry.winfo_id()
+                    entry.drop_target_register(DND_FILES)
                     entry.dnd_bind('<<Drop>>', lambda e: self.handle_drop(e, entry))
-                except:
-                    pass
+                except Exception as e:
+                    print(f"拖拽绑定失败: {e}")
             
-            return frame
+            return entry
         
         def handle_drop(self, event, entry):
             """处理拖拽的文件"""
@@ -337,24 +346,34 @@ def create_gui():
         def setup_ui(self):
             """设置UI"""
             main_frame = Frame(self.root, padx=20, pady=20)
-            main_frame.pack(fill="both", expand=True)
+            main_frame.grid(row=0, column=0, sticky="nsew")
+            self.root.grid_rowconfigure(0, weight=1)
+            self.root.grid_columnconfigure(0, weight=1)
+            main_frame.grid_columnconfigure(0, weight=1)
             
             title_label = Label(
                 main_frame,
                 text="工资表人员差异对比工具",
                 font=("微软雅黑", 16, "bold")
             )
-            title_label.pack(pady=(0, 20))
+            title_label.grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 20))
             
-            file_frame = Frame(main_frame)
-            file_frame.pack(fill="x", pady=10)
+            file_frame = Frame(main_frame, bd=2, relief="groove")
+            file_frame.grid(row=1, column=0, columnspan=3, sticky="ew", pady=10, padx=0)
             
-            self.create_drop_target(self.prev_file, "上月工资表:")
-            self.create_drop_target(self.curr_file, "本月工资表:")
-            self.create_drop_target(self.phone_file, "电话信息表:")
+            file_frame.grid_columnconfigure(0, weight=0)
+            file_frame.grid_columnconfigure(1, weight=1)
+            file_frame.grid_columnconfigure(2, weight=0)
+            
+            hint_label = Label(file_frame, text="← 拖拽 Excel 文件到输入框", fg="#888888", font=("微软雅黑", 9))
+            hint_label.grid(row=0, column=0, columnspan=3, sticky="w", padx=10, pady=(5, 0))
+            
+            self.prev_file = self.create_drop_target(file_frame, 1, "上月工资表:")
+            self.curr_file = self.create_drop_target(file_frame, 2, "本月工资表:")
+            self.phone_file = self.create_drop_target(file_frame, 3, "电话信息表:")
             
             btn_frame = Frame(main_frame)
-            btn_frame.pack(pady=15)
+            btn_frame.grid(row=2, column=0, columnspan=3, pady=15)
             
             self.run_btn = Button(
                 btn_frame,
@@ -364,44 +383,50 @@ def create_gui():
                 height=2,
                 font=("微软雅黑", 11)
             )
-            self.run_btn.pack(side="left", padx=10)
+            self.run_btn.grid(row=0, column=0, padx=10)
             
             self.export_btn = Button(
                 btn_frame,
-                text="导出报告",
-                command=self.export_report,
+                text="打开结果文件夹",
+                command=self.open_output_folder,
                 width=15,
                 height=2,
                 font=("微软雅黑", 11),
                 state="disabled"
             )
-            self.export_btn.pack(side="left", padx=10)
+            self.export_btn.grid(row=0, column=1, padx=10)
             
             log_frame = Frame(main_frame)
-            log_frame.pack(fill="both", expand=True, pady=10)
+            log_frame.grid(row=3, column=0, columnspan=3, sticky="nsew", pady=10)
+            main_frame.grid_rowconfigure(3, weight=1)
             
             log_label = Label(log_frame, text="处理日志:", anchor="w", font=("微软雅黑", 10, "bold"))
-            log_label.pack(anchor="w")
+            log_label.grid(row=0, column=0, sticky="w")
             
             self.log_text = Text(log_frame, height=12, font=("Consolas", 9))
+            self.log_text.grid(row=1, column=0, sticky="nsew")
+            log_frame.grid_rowconfigure(1, weight=1)
+            log_frame.grid_columnconfigure(0, weight=1)
+            
             scrollbar = Scrollbar(log_frame, command=self.log_text.yview)
+            scrollbar.grid(row=1, column=1, sticky="ns")
             self.log_text.config(yscrollcommand=scrollbar.set)
-            self.log_text.pack(side="left", fill="both", expand=True)
-            scrollbar.pack(side="right", fill="y")
             
             result_frame = Frame(main_frame)
-            result_frame.pack(fill="both", expand=True, pady=10)
+            result_frame.grid(row=4, column=0, columnspan=3, sticky="nsew", pady=10)
+            main_frame.grid_rowconfigure(4, weight=1)
             
             result_label = Label(result_frame, text="结果预览:", anchor="w", font=("微软雅黑", 10, "bold"))
-            result_label.pack(anchor="w")
+            result_label.grid(row=0, column=0, sticky="w")
             
             self.result_tree = ttk.Treeview(result_frame, show="headings", height=8)
-            self.result_tree.pack(fill="both", expand=True)
+            self.result_tree.grid(row=1, column=0, sticky="nsew")
+            result_frame.grid_rowconfigure(1, weight=1)
+            result_frame.grid_columnconfigure(0, weight=1)
             
             scrollbar2 = Scrollbar(result_frame, command=self.result_tree.yview)
+            scrollbar2.grid(row=1, column=1, sticky="ns")
             self.result_tree.config(yscrollcommand=scrollbar2.set)
-            self.result_tree.pack(side="left", fill="both", expand=True)
-            scrollbar2.pack(side="right", fill="y")
             
             self.status_label = Label(
                 main_frame,
@@ -409,7 +434,7 @@ def create_gui():
                 anchor="w",
                 font=("微软雅黑", 9)
             )
-            self.status_label.pack(fill="x", pady=(10, 0))
+            self.status_label.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(10, 0))
         
         def validate_inputs(self):
             """验证输入"""
@@ -455,11 +480,13 @@ def create_gui():
                 self.update_result_preview()
                 self.export_btn.config(state="normal")
                 
+                saved_path = self.auto_save_report()
+                
                 self.status_label.config(
                     text=f"完成: 新增 {len(self.result_data['new'])} 人, 减少 {len(self.result_data['left'])} 人"
                 )
                 
-                messagebox.showinfo("完成", "对比完成，可导出报告")
+                messagebox.showinfo("完成", "对比完成，报告已保存")
             
             except Exception as e:
                 self.log(f"[ERROR] 处理失败: {str(e)}")
@@ -467,6 +494,39 @@ def create_gui():
             
             finally:
                 self.run_btn.config(state="normal")
+        
+        def auto_save_report(self):
+            """自动保存报告"""
+            curr_path = self.curr_file.get()
+            if not curr_path:
+                return
+            
+            base_dir = os.path.dirname(curr_path)
+            output_dir = os.path.join(base_dir, "difference")
+            os.makedirs(output_dir, exist_ok=True)
+            
+            curr_filename = os.path.basename(curr_path)
+            curr_name = os.path.splitext(curr_filename)[0]
+            
+            filename = f"{curr_name}_工资人员差异报告_{datetime.now().strftime('%Y%m%d')}.xlsx"
+            filepath = os.path.join(output_dir, filename)
+            
+            counter = 1
+            while os.path.exists(filepath):
+                filename = f"{curr_name}_工资人员差异报告_{datetime.now().strftime('%Y%m%d')}_{counter}.xlsx"
+                filepath = os.path.join(output_dir, filename)
+                counter += 1
+            
+            phone_dict = {}
+            if self.phone_file.get() and os.path.exists(self.phone_file.get()):
+                phone_dict = read_phone_table(self.phone_file.get())
+                phone_dict_clean = {name: str(phone).rstrip('.0') for name, phone in phone_dict.items() if phone}
+                phone_dict = phone_dict_clean
+            
+            generate_report(self.result_data, phone_dict, filepath, logger=self.log)
+            self.log(f"[INFO] 报告已保存: {os.path.abspath(filepath)}")
+            
+            return filepath
         
         def update_result_preview(self):
             """更新结果预览"""
@@ -503,25 +563,73 @@ def create_gui():
                 messagebox.showwarning("警告", "没有可导出的数据")
                 return
             
-            filepath = filedialog.asksaveasfilename(
-                title="保存报告",
-                defaultextension=".xlsx",
-                filetypes=[("Excel文件", "*.xlsx")],
-                initialfile=f"工资人员差异报告_{datetime.now().strftime('%Y%m%d')}.xlsx"
-            )
+            curr_path = self.curr_file.get()
+            if not curr_path:
+                messagebox.showwarning("警告", "请先选择本月工资表")
+                return
             
-            if filepath:
-                try:
-                    phone_dict = {}
-                    if self.phone_file.get() and os.path.exists(self.phone_file.get()):
-                        phone_dict = read_phone_table(self.phone_file.get())
-                    
-                    generate_report(self.result_data, phone_dict, filepath, logger=self.log)
-                    messagebox.showinfo("成功", f"报告已保存:\n{filepath}")
+            base_dir = os.path.dirname(curr_path)
+            output_dir = os.path.join(base_dir, "difference")
+            os.makedirs(output_dir, exist_ok=True)
+            
+            filename = f"工资人员差异报告_{datetime.now().strftime('%Y%m%d')}.xlsx"
+            filepath = os.path.join(output_dir, filename)
+            
+            counter = 1
+            while os.path.exists(filepath):
+                filename = f"工资人员差异报告_{datetime.now().strftime('%Y%m%d')}_{counter}.xlsx"
+                filepath = os.path.join(output_dir, filename)
+                counter += 1
+            
+            try:
+                phone_dict = {}
+                if self.phone_file.get() and os.path.exists(self.phone_file.get()):
+                    phone_dict = read_phone_table(self.phone_file.get())
                 
-                except Exception as e:
-                    self.log(f"[ERROR] 导出失败: {str(e)}")
-                    messagebox.showerror("错误", f"导出失败:\n{str(e)}")
+                phone_dict_clean = {}
+                for name, phone in phone_dict.items():
+                    if phone:
+                        phone_str = str(phone)
+                        if '.' in phone_str and phone_str.endswith('.0'):
+                            phone_str = phone_str.replace('.0', '')
+                        phone_dict_clean[name] = phone_str
+                phone_dict = phone_dict_clean
+                
+                generate_report(self.result_data, phone_dict, filepath, logger=self.log)
+                self.log(f"[INFO] 报告已保存: {os.path.abspath(filepath)}")
+                messagebox.showinfo("成功", f"报告已保存:\n{filepath}")
+                
+                if sys.platform == "win32":
+                    os.startfile(output_dir)
+                elif sys.platform == "darwin":
+                    os.system(f"open '{output_dir}'")
+                else:
+                    os.system(f"xdg-open '{output_dir}'")
+            
+            except Exception as e:
+                self.log(f"[ERROR] 导出失败: {str(e)}")
+                messagebox.showerror("错误", f"导出失败:\n{str(e)}")
+        
+        def open_output_folder(self):
+            """打开结果文件夹"""
+            curr_path = self.curr_file.get()
+            if not curr_path:
+                messagebox.showwarning("警告", "请先选择本月工资表")
+                return
+            
+            base_dir = os.path.dirname(curr_path)
+            output_dir = os.path.join(base_dir, "difference")
+            
+            if not os.path.exists(output_dir):
+                messagebox.showwarning("警告", "结果文件夹不存在，请先运行对比")
+                return
+            
+            if sys.platform == "win32":
+                os.startfile(output_dir)
+            elif sys.platform == "darwin":
+                os.system(f"open '{output_dir}'")
+            else:
+                os.system(f"xdg-open '{output_dir}'")
         
         def on_closing(self):
             """关闭窗口时保存配置"""
