@@ -2418,6 +2418,20 @@ class ExcelConverterApp:
             self.csv_drop_label.config(text="拖拽 CSV 文件到此处 或 点击选择", fg='gray', bg='white')
             self.csv_info_label.config(text="", foreground='gray')
     
+    def open_config_editor(self):
+        """
+        打开配置编辑器
+        
+        弹出配置编辑器窗口，编辑后保存配置并重新加载
+        """
+        editor = ConfigEditor(self.root, self.app_config)
+        self.root.wait_window(editor)
+        if editor.result:
+            self.app_config = editor.result
+            save_config(self.app_config)
+            load_config_and_apply()
+            messagebox.showinfo("提示", "配置已保存")
+    
     def save_recent_csv(self):
         """
         保存最近使用的人员信息文件路径
