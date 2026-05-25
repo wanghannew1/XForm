@@ -1,0 +1,1 @@
+powershell -ExecutionPolicy ByPass -c "uv run .\XFormz_zlh_v7.py"
