@@ -35,7 +35,7 @@ HIDE_COLUMNS_CONFIG = {
     "mode1_headers": ["实发合计"],
     "mode2_columns": [],
     "mode2_headers": ["部门", "职工号", "交通补贴"],
-    "clear_sign_rows": True
+    "clear_sign_rows": False
 }
 
 def load_config():
@@ -143,7 +143,7 @@ class App:
         # ---------- 签名行选项 ----------
         sign_frame = tk.LabelFrame(hide_frame, text="签名行配置", padx=10, pady=5)
         sign_frame.pack(fill=tk.X, pady=5)
-        self.clear_sign_rows_var = tk.BooleanVar(value=self.config.get("clear_sign_rows", True))
+        self.clear_sign_rows_var = tk.BooleanVar(value=self.config.get("clear_sign_rows", False))
         tk.Checkbutton(sign_frame, text="清空签名行（合计行与制表人之间的总经理签字等提示词）",
                        variable=self.clear_sign_rows_var, onvalue=True, offvalue=False).pack(anchor=tk.W)
 
@@ -381,7 +381,7 @@ class App:
                 table_end_row = header_row
 
             # 3. 清空倒数第2、3行（仅在配置允许时）
-            if config.get("clear_sign_rows", True):
+            if config.get("clear_sign_rows", False):
                 for clear_row in (maker_row - 1, maker_row - 2):
                     if clear_row >= 1:
                         ws.range((clear_row, 1), (clear_row, last_col)).value = None
@@ -424,7 +424,7 @@ class App:
                     data_end_col = c
 
             # 二次清空（仅在配置允许时，删除列后行号可能变化）
-            if config.get("clear_sign_rows", True):
+            if config.get("clear_sign_rows", False):
                 for clear_row in (maker_row - 1, maker_row - 2):
                     if clear_row >= 1:
                         ws.range((clear_row, 1), (clear_row, last_col)).value = None
