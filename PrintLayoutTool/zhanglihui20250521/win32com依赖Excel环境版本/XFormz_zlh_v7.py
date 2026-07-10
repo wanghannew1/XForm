@@ -34,7 +34,8 @@ HIDE_COLUMNS_CONFIG = {
     "mode1_columns": [],
     "mode1_headers": ["实发合计"],
     "mode2_columns": [],
-    "mode2_headers": ["部门", "职工号", "交通补贴"]
+    "mode2_headers": ["部门", "职工号", "交通补贴"],
+    "clear_sign_rows": True
 }
 
 def load_config():
@@ -139,6 +140,13 @@ class App:
         self.mode2_headers_var = tk.StringVar(value=",".join(self.config["mode2_headers"]))
         tk.Entry(mode2_frame, textvariable=self.mode2_headers_var, width=25).pack(side=tk.LEFT, padx=5)
 
+        # ---------- 签名行选项 ----------
+        sign_frame = tk.LabelFrame(hide_frame, text="签名行配置", padx=10, pady=5)
+        sign_frame.pack(fill=tk.X, pady=5)
+        self.clear_sign_rows_var = tk.BooleanVar(value=self.config.get("clear_sign_rows", True))
+        tk.Checkbutton(sign_frame, text="清空签名行（合计行与制表人之间的总经理签字等提示词）",
+                       variable=self.clear_sign_rows_var, onvalue=True, offvalue=False).pack(anchor=tk.W)
+
     # ---------- 文件列表操作 ----------
     def on_drop(self, event):
         files = self.root.tk.splitlist(event.data)
@@ -175,7 +183,8 @@ class App:
             "mode1_columns": [c.strip() for c in self.mode1_columns_var.get().split(",") if c.strip()],
             "mode1_headers": [h.strip() for h in self.mode1_headers_var.get().split(",") if h.strip()],
             "mode2_columns": [c.strip() for c in self.mode2_columns_var.get().split(",") if c.strip()],
-            "mode2_headers": [h.strip() for h in self.mode2_headers_var.get().split(",") if h.strip()]
+            "mode2_headers": [h.strip() for h in self.mode2_headers_var.get().split(",") if h.strip()],
+            "clear_sign_rows": self.clear_sign_rows_var.get()
         }
         if self.mode1_enabled.get():
             config["enabled_modes"].append("mode1")
@@ -371,11 +380,12 @@ class App:
             if table_end_row < header_row:
                 table_end_row = header_row
 
-            # 3. 清空倒数第2、3行
-            for clear_row in (maker_row - 1, maker_row - 2):
-                if clear_row >= 1:
-                    ws.range((clear_row, 1), (clear_row, last_col)).value = None
-                    self.log_insert(f"已清空第{clear_row}行")
+            # 3. 清空倒数第2、3行（仅在配置允许时）
+            if config.get("clear_sign_rows", True):
+                for clear_row in (maker_row - 1, maker_row - 2):
+                    if clear_row >= 1:
+                        ws.range((clear_row, 1), (clear_row, last_col)).value = None
+                        self.log_insert(f"已清空第{clear_row}行")
 
             # 4. 删除列（判断空值时只到 table_end_row）
             delete_cols = self.get_columns_to_delete(ws, config, table_end_row, last_col)
@@ -413,10 +423,11 @@ class App:
                 if ws.range((header_row, c)).value is not None:
                     data_end_col = c
 
-            # 二次清空
-            for clear_row in (maker_row - 1, maker_row - 2):
-                if clear_row >= 1:
-                    ws.range((clear_row, 1), (clear_row, last_col)).value = None
+            # 二次清空（仅在配置允许时，删除列后行号可能变化）
+            if config.get("clear_sign_rows", True):
+                for clear_row in (maker_row - 1, maker_row - 2):
+                    if clear_row >= 1:
+                        ws.range((clear_row, 1), (clear_row, last_col)).value = None
 
             # 5. 页面设置
             ws.api.PageSetup.LeftMargin = 2 * CM_TO_POINTS
