@@ -1,0 +1,4 @@
+xlrd>=2.0.1
+xlsxwriter>=3.2.0
+openpyxl>=3.1.5
+tkinterdnd2>=0.4.3
