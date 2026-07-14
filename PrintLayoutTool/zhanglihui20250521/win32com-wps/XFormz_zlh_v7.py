@@ -540,7 +540,7 @@ class App:
 
             # 5. 页面设置
             ws.api.PageSetup.LeftMargin = 2 * CM_TO_POINTS
-            ws.api.PageSetup.RightMargin = 2 * CM_TO_POINTS
+            ws.api.PageSetup.RightMargin = 1 * CM_TO_POINTS
             ws.api.PageSetup.PrintTitleRows = "$1:$5"
             ws.api.PageSetup.Zoom = False
             ws.api.PageSetup.FitToPagesWide = 1
