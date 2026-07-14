@@ -20,7 +20,8 @@ xform/
 │
 ├── PrintLayoutTool/              # 工资表打印格式批量调整工具
 │   ├── 20260407/                 # xlwings 版（需安装 Excel）
-│   └── zhanglihui20250521/       # win32com 版（增强版）
+│   └── zhanglihui20250521/
+│       └── win32com-wps/         # win32com 版（需安装 Excel/WPS）
 │
 └── legacy/                       # 历史遗留版本（已弃用，仅供参考）
     └── README.md

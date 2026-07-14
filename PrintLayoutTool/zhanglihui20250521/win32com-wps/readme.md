@@ -9,7 +9,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 
 2.进入py脚本目录，创建虚拟环境，并激活
 ```powershell
-cd C:\Users\22419\PycharmProjects\XForm\PrintLayoutTool\zhanglihui20250521\
+cd PrintLayoutTool\zhanglihui20250521\win32com-wps
 uv venv
 .venv\Scripts\activate
 ```
