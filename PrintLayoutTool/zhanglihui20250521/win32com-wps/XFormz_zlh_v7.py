@@ -36,8 +36,8 @@ HIDE_COLUMNS_CONFIG = {
     "mode2_columns": [],
     "mode2_headers": ["部门", "职工号", "交通补贴"],
     "clear_sign_rows": False,
-    "left_margin_cm": 2,
-    "right_margin_cm": 1,
+    "left_margin_cm": 1.5,
+    "right_margin_cm": 1.5,
     "text_replacements": [
         {"find": "部长、分管副总签字：", "replace": "分管领导审核："}
     ]
@@ -82,7 +82,7 @@ class App:
     def __init__(self, root):
         self.root = root
         self.root.title("工资表打印格式批量调整工具")
-        self.root.geometry("700x920")
+        self.root.geometry("700x980")
         self.file_list = []
 
         tk.Label(root, text="待处理文件列表：(支持拖拽文件至此)", font=("微软雅黑", 10)).pack(anchor='w', padx=10, pady=5)
@@ -158,10 +158,10 @@ class App:
         margin_frame = tk.LabelFrame(root, text="页边距设置", padx=10, pady=5)
         margin_frame.pack(fill=tk.X, padx=10, pady=5)
         tk.Label(margin_frame, text="左边距(cm)：").pack(side=tk.LEFT)
-        self.left_margin_var = tk.StringVar(value=str(self.config.get("left_margin_cm", 2)))
+        self.left_margin_var = tk.StringVar(value=str(self.config.get("left_margin_cm", 1.5)))
         tk.Entry(margin_frame, textvariable=self.left_margin_var, width=5).pack(side=tk.LEFT, padx=5)
         tk.Label(margin_frame, text="右边距(cm)：").pack(side=tk.LEFT, padx=(15, 0))
-        self.right_margin_var = tk.StringVar(value=str(self.config.get("right_margin_cm", 1)))
+        self.right_margin_var = tk.StringVar(value=str(self.config.get("right_margin_cm", 1.5)))
         tk.Entry(margin_frame, textvariable=self.right_margin_var, width=5).pack(side=tk.LEFT, padx=5)
 
         # ---------- 文本替换配置 ----------
@@ -553,8 +553,8 @@ class App:
                         ws.range((clear_row, 1), (clear_row, last_col)).value = None
 
             # 5. 页面设置
-            ws.api.PageSetup.LeftMargin = config.get("left_margin_cm", 2) * CM_TO_POINTS
-            ws.api.PageSetup.RightMargin = config.get("right_margin_cm", 1) * CM_TO_POINTS
+            ws.api.PageSetup.LeftMargin = config.get("left_margin_cm", 1.5) * CM_TO_POINTS
+            ws.api.PageSetup.RightMargin = config.get("right_margin_cm", 1.5) * CM_TO_POINTS
             ws.api.PageSetup.PrintTitleRows = "$1:$5"
             ws.api.PageSetup.Zoom = False
             ws.api.PageSetup.FitToPagesWide = 1
