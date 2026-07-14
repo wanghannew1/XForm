@@ -152,6 +152,23 @@ class App:
         tk.Checkbutton(sign_frame, text="清空签名行（合计行与制表人之间的总经理签字等提示词）",
                        variable=self.clear_sign_rows_var, onvalue=True, offvalue=False).pack(anchor=tk.W)
 
+        # ---------- 文本替换配置 ----------
+        replace_frame = tk.LabelFrame(root, text="文本替换配置", padx=10, pady=5)
+        replace_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        self.replacements = list(self.config.get("text_replacements", []))
+
+        self.replace_listbox = tk.Listbox(replace_frame, height=4)
+        self.replace_listbox.pack(fill=tk.X, pady=5)
+
+        replace_btn_frame = tk.Frame(replace_frame)
+        replace_btn_frame.pack(fill=tk.X)
+        tk.Button(replace_btn_frame, text="添加", command=self.add_replacement).pack(side=tk.LEFT, padx=2)
+        tk.Button(replace_btn_frame, text="编辑", command=self.edit_replacement).pack(side=tk.LEFT, padx=2)
+        tk.Button(replace_btn_frame, text="删除", command=self.delete_replacement).pack(side=tk.LEFT, padx=2)
+
+        self.refresh_replace_list()
+
     # ---------- 文件列表操作 ----------
     def on_drop(self, event):
         files = self.root.tk.splitlist(event.data)
@@ -190,13 +207,91 @@ class App:
             "mode2_columns": [c.strip() for c in self.mode2_columns_var.get().split(",") if c.strip()],
             "mode2_headers": [h.strip() for h in self.mode2_headers_var.get().split(",") if h.strip()],
             "clear_sign_rows": self.clear_sign_rows_var.get(),
-            "text_replacements": self.config.get("text_replacements", HIDE_COLUMNS_CONFIG.get("text_replacements", []))
+            "text_replacements": self.replacements
         }
         if self.mode1_enabled.get():
             config["enabled_modes"].append("mode1")
         if self.mode2_enabled.get():
             config["enabled_modes"].append("mode2")
         return config
+
+    # ---------- 文本替换规则编辑 ----------
+    def refresh_replace_list(self):
+        self.replace_listbox.delete(0, tk.END)
+        for rule in self.replacements:
+            self.replace_listbox.insert(tk.END, f"{rule['find']} → {rule['replace']}")
+
+    def add_replacement(self):
+        dialog = tk.Toplevel(self.root)
+        dialog.title("添加替换规则")
+        dialog.geometry("450x150")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        tk.Label(dialog, text="查找文字：").grid(row=0, column=0, sticky=tk.W, padx=10, pady=10)
+        find_entry = tk.Entry(dialog, width=35)
+        find_entry.grid(row=0, column=1, sticky=tk.W, padx=10)
+
+        tk.Label(dialog, text="替换为：").grid(row=1, column=0, sticky=tk.W, padx=10, pady=10)
+        replace_entry = tk.Entry(dialog, width=35)
+        replace_entry.grid(row=1, column=1, sticky=tk.W, padx=10)
+
+        def save():
+            find_text = find_entry.get().strip()
+            replace_text = replace_entry.get().strip()
+            if find_text:
+                self.replacements.append({"find": find_text, "replace": replace_text})
+                self.refresh_replace_list()
+            dialog.destroy()
+
+        btn_frame = tk.Frame(dialog)
+        btn_frame.grid(row=2, column=0, columnspan=2, pady=10)
+        tk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="确定", command=save).pack(side=tk.LEFT, padx=5)
+
+    def edit_replacement(self):
+        selection = self.replace_listbox.curselection()
+        if not selection:
+            return
+        idx = selection[0]
+        rule = self.replacements[idx]
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("编辑替换规则")
+        dialog.geometry("450x150")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        tk.Label(dialog, text="查找文字：").grid(row=0, column=0, sticky=tk.W, padx=10, pady=10)
+        find_entry = tk.Entry(dialog, width=35)
+        find_entry.insert(0, rule["find"])
+        find_entry.grid(row=0, column=1, sticky=tk.W, padx=10)
+
+        tk.Label(dialog, text="替换为：").grid(row=1, column=0, sticky=tk.W, padx=10, pady=10)
+        replace_entry = tk.Entry(dialog, width=35)
+        replace_entry.insert(0, rule["replace"])
+        replace_entry.grid(row=1, column=1, sticky=tk.W, padx=10)
+
+        def save():
+            find_text = find_entry.get().strip()
+            replace_text = replace_entry.get().strip()
+            if find_text:
+                self.replacements[idx] = {"find": find_text, "replace": replace_text}
+                self.refresh_replace_list()
+            dialog.destroy()
+
+        btn_frame = tk.Frame(dialog)
+        btn_frame.grid(row=2, column=0, columnspan=2, pady=10)
+        tk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="确定", command=save).pack(side=tk.LEFT, padx=5)
+
+    def delete_replacement(self):
+        selection = self.replace_listbox.curselection()
+        if not selection:
+            return
+        idx = selection[0]
+        del self.replacements[idx]
+        self.refresh_replace_list()
 
     # ---------- 列操作工具 ----------
     @staticmethod
