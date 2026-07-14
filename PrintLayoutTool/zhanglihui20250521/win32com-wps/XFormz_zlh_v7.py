@@ -491,17 +491,23 @@ class App:
                         self.log_insert(f"已清空第{clear_row}行")
 
             # 4. 删除列（判断空值时只到 table_end_row）
+            # 改为只清空数据区域+隐藏列，不删除整列，以保留签名行（如"部长、分管副总签字："）
             delete_cols = self.get_columns_to_delete(ws, config, table_end_row, last_col)
+            hidden_cols = []
             for col_idx in sorted(delete_cols, reverse=True):
                 header_val = ws.range((header_row, col_idx)).value
                 col_name = str(header_val).strip() if header_val else self.index_to_column_letter(col_idx)
-                ws.api.Columns(col_idx).Delete()
-                self.log_insert(f"已删除列：{col_name}")
+                # 清空表头行到合计行的数据，保留合计行以下（签名行等）
+                if col_idx <= last_col:
+                    ws.range((header_row, col_idx), (table_end_row, col_idx)).value = None
+                    ws.api.Columns(col_idx).Hidden = True
+                    hidden_cols.append(col_idx)
+                    self.log_insert(f"已清空并隐藏列：{col_name}")
 
-            # 删除后刷新区域
-            ws.used_range
-            last_row = ws.used_range.last_cell.row
-            last_col = ws.used_range.last_cell.column
+            if hidden_cols:
+                ws.used_range
+                last_row = ws.used_range.last_cell.row
+                last_col = ws.used_range.last_cell.column
 
             # 重新确定 maker_row
             maker_row_updated = None
