@@ -517,7 +517,7 @@ class App:
             for r_offset, row_data in enumerate(footer_data):
                 for c_offset, cell_val in enumerate(row_data):
                     if cell_val and isinstance(cell_val, str) and "部长、分管副总签字：" in cell_val:
-                        new_val = cell_val.replace("部长、分管副总签字：", "部长签字：")
+                        new_val = cell_val.replace("部长、分管副总签字：", "分管领导审核：")
                         cell = ws.range((max(1, last_row - 2) + r_offset, 1 + c_offset))
                         cell.value = new_val
                         cell.api.HorizontalAlignment = -4108
