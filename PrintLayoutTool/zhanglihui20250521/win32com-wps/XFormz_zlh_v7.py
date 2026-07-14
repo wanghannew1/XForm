@@ -36,6 +36,8 @@ HIDE_COLUMNS_CONFIG = {
     "mode2_columns": [],
     "mode2_headers": ["部门", "职工号", "交通补贴"],
     "clear_sign_rows": False,
+    "left_margin_cm": 2,
+    "right_margin_cm": 1,
     "text_replacements": [
         {"find": "部长、分管副总签字：", "replace": "分管领导审核："}
     ]
@@ -152,6 +154,16 @@ class App:
         tk.Checkbutton(sign_frame, text="清空签名行（合计行与制表人之间的总经理签字等提示词）",
                        variable=self.clear_sign_rows_var, onvalue=True, offvalue=False).pack(anchor=tk.W)
 
+        # ---------- 页边距配置 ----------
+        margin_frame = tk.LabelFrame(root, text="页边距设置", padx=10, pady=5)
+        margin_frame.pack(fill=tk.X, padx=10, pady=5)
+        tk.Label(margin_frame, text="左边距(cm)：").pack(side=tk.LEFT)
+        self.left_margin_var = tk.StringVar(value=str(self.config.get("left_margin_cm", 2)))
+        tk.Entry(margin_frame, textvariable=self.left_margin_var, width=5).pack(side=tk.LEFT, padx=5)
+        tk.Label(margin_frame, text="右边距(cm)：").pack(side=tk.LEFT, padx=(15, 0))
+        self.right_margin_var = tk.StringVar(value=str(self.config.get("right_margin_cm", 1)))
+        tk.Entry(margin_frame, textvariable=self.right_margin_var, width=5).pack(side=tk.LEFT, padx=5)
+
         # ---------- 文本替换配置 ----------
         replace_frame = tk.LabelFrame(root, text="文本替换配置", padx=10, pady=5)
         replace_frame.pack(fill=tk.X, padx=10, pady=5)
@@ -207,6 +219,8 @@ class App:
             "mode2_columns": [c.strip() for c in self.mode2_columns_var.get().split(",") if c.strip()],
             "mode2_headers": [h.strip() for h in self.mode2_headers_var.get().split(",") if h.strip()],
             "clear_sign_rows": self.clear_sign_rows_var.get(),
+            "left_margin_cm": float(self.left_margin_var.get()),
+            "right_margin_cm": float(self.right_margin_var.get()),
             "text_replacements": self.replacements
         }
         if self.mode1_enabled.get():
@@ -539,8 +553,8 @@ class App:
                         ws.range((clear_row, 1), (clear_row, last_col)).value = None
 
             # 5. 页面设置
-            ws.api.PageSetup.LeftMargin = 2 * CM_TO_POINTS
-            ws.api.PageSetup.RightMargin = 1 * CM_TO_POINTS
+            ws.api.PageSetup.LeftMargin = config.get("left_margin_cm", 2) * CM_TO_POINTS
+            ws.api.PageSetup.RightMargin = config.get("right_margin_cm", 1) * CM_TO_POINTS
             ws.api.PageSetup.PrintTitleRows = "$1:$5"
             ws.api.PageSetup.Zoom = False
             ws.api.PageSetup.FitToPagesWide = 1
