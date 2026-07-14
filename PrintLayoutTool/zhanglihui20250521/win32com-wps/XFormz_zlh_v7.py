@@ -481,8 +481,10 @@ class App:
             if table_end_row < header_row:
                 table_end_row = header_row
 
-            # 3. 清空倒数第2、3行（仅在配置允许时）
-            if config.get("clear_sign_rows", False):
+            # 3. 清空倒数第2、3行
+            clear_enabled = config.get("clear_sign_rows", False)
+            self.log_insert(f"[配置] clear_sign_rows={clear_enabled}")
+            if clear_enabled:
                 for clear_row in (maker_row - 1, maker_row - 2):
                     if clear_row >= 1:
                         ws.range((clear_row, 1), (clear_row, last_col)).value = None
