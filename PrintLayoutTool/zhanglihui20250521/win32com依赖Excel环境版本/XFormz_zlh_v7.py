@@ -35,17 +35,22 @@ HIDE_COLUMNS_CONFIG = {
     "mode1_headers": ["实发合计"],
     "mode2_columns": [],
     "mode2_headers": ["部门", "职工号", "交通补贴"],
-    "clear_sign_rows": False
+    "clear_sign_rows": False,
+    "text_replacements": [
+        {"find": "部长、分管副总签字：", "replace": "分管领导审核："}
+    ]
 }
 
 def load_config():
+    config = HIDE_COLUMNS_CONFIG.copy()
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                saved = json.load(f)
+                config.update(saved)
         except:
-            return HIDE_COLUMNS_CONFIG.copy()
-    return HIDE_COLUMNS_CONFIG.copy()
+            pass
+    return config
 
 def save_config(config):
     try:
@@ -184,7 +189,8 @@ class App:
             "mode1_headers": [h.strip() for h in self.mode1_headers_var.get().split(",") if h.strip()],
             "mode2_columns": [c.strip() for c in self.mode2_columns_var.get().split(",") if c.strip()],
             "mode2_headers": [h.strip() for h in self.mode2_headers_var.get().split(",") if h.strip()],
-            "clear_sign_rows": self.clear_sign_rows_var.get()
+            "clear_sign_rows": self.clear_sign_rows_var.get(),
+            "text_replacements": self.config.get("text_replacements", HIDE_COLUMNS_CONFIG.get("text_replacements", []))
         }
         if self.mode1_enabled.get():
             config["enabled_modes"].append("mode1")
@@ -511,23 +517,29 @@ class App:
                     ws.range((maker_row, maker_col)).api.HorizontalAlignment = -4152
                     self.log_insert("制表人列在最左，无需合并")
 
-            # 14. 部长签字替换（兜底）
+            # 14. 文本替换（从配置读取替换规则）
+            replacements = config.get("text_replacements", [])
             footer_data = ensure_2d_list(ws.range((max(1, last_row - 2), 1), (last_row, last_col)).value)
-            found_sign = False
-            for r_offset, row_data in enumerate(footer_data):
-                for c_offset, cell_val in enumerate(row_data):
-                    if cell_val and isinstance(cell_val, str) and "部长、分管副总签字：" in cell_val:
-                        new_val = cell_val.replace("部长、分管副总签字：", "分管领导审核：")
-                        cell = ws.range((max(1, last_row - 2) + r_offset, 1 + c_offset))
-                        cell.value = new_val
-                        cell.api.HorizontalAlignment = -4108
-                        self.log_insert(f"已修改签字文本：{new_val}")
-                        found_sign = True
+            for rule in replacements:
+                find_text = rule.get("find", "")
+                replace_text = rule.get("replace", "")
+                if not find_text:
+                    continue
+                found = False
+                for r_offset, row_data in enumerate(footer_data):
+                    for c_offset, cell_val in enumerate(row_data):
+                        if cell_val and isinstance(cell_val, str) and find_text in cell_val:
+                            new_val = cell_val.replace(find_text, replace_text)
+                            cell = ws.range((max(1, last_row - 2) + r_offset, 1 + c_offset))
+                            cell.value = new_val
+                            cell.api.HorizontalAlignment = -4108
+                            self.log_insert(f"文本替换：'{find_text}' → '{replace_text}'")
+                            found = True
+                            break
+                    if found:
                         break
-                if found_sign:
-                    break
-            if not found_sign:
-                self.log_insert("提示：未找到'部长、分管副总签字：'文本（可能已被清空）")
+                if not found:
+                    self.log_insert(f"提示：未找到'{find_text}'文本（可能已被清空）")
 
             # 15. 业务审核删除
             keywords = ["社保基数", "医保基数", "工伤基数", "公积金基数"]
