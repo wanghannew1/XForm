@@ -14,9 +14,9 @@ uv venv
 .venv\Scripts\activate
 ```
 
-3.安装依赖包
+3.安装依赖包（使用清华镜像加速）
 ```powershell
-uv pip install -r requirements.txt
+uv pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 4.运行py脚本
