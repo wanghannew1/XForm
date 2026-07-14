@@ -650,30 +650,7 @@ class App:
                 if not found:
                     self.log_insert(f"提示：未找到'{find_text}'文本（可能已被清空）")
 
-            # 15. 业务审核删除
-            keywords = ["社保基数", "医保基数", "工伤基数", "公积金基数"]
-            header_vals = [ws.range((3, c)).value for c in range(1, min(last_col + 1, 51))]
-            col_indices = [c + 1 for c, v in enumerate(header_vals)
-                           if v and any(kw in str(v) for kw in keywords)]
-            if len(col_indices) == 4:
-                col_data = [[ws.range((r, c)).value for c in col_indices] for r in range(4, last_row + 1)]
-                all_zero = all(
-                    cell is None or (isinstance(cell, (int, float)) and cell == 0)
-                    for row in col_data for cell in row
-                )
-                if all_zero:
-                    for r_offset, row_data in enumerate(footer_data):
-                        for c_offset, cell_val in enumerate(row_data):
-                            if cell_val and "业务审核：" in str(cell_val):
-                                cell = ws.range((max(1, last_row - 2) + r_offset, 1 + c_offset))
-                                cell.value = str(cell_val).replace("业务审核：", "")
-                                self.log_insert("已删除'业务审核：'字样")
-                                break
-                        else:
-                            continue
-                        break
-
-            # 16. 保存文件
+            # 15. 保存文件
             if os.path.exists(new_file_path):
                 base, ext = os.path.splitext(new_file_path)
                 counter = 1
