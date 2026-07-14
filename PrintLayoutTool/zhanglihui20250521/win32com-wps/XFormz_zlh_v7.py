@@ -590,7 +590,7 @@ class App:
             for r in range(header_row + 1, table_end_row + 1):
                 ws.api.Rows(r).RowHeight = 20
 
-            # 13. 处理"制表人："行
+            # 13. 处理"制表人："行（仅当 clear_sign_rows 为 True 时合并清空，否则保留同行的其他签名文字）
             maker_col = None
             maker_val = None
             for c in range(1, last_col + 1):
@@ -600,19 +600,22 @@ class App:
                     maker_val = val
                     break
             if maker_col:
-                for c in range(1, last_col + 1):
-                    if c != maker_col:
-                        ws.range((maker_row, c)).value = None
-                if maker_col > 1:
-                    content = str(maker_val).strip()
-                    merge_range = ws.range((maker_row, 1), (maker_row, maker_col))
-                    merge_range.merge()
-                    merge_range.value = content
-                    merge_range.api.HorizontalAlignment = -4152  # 右对齐
-                    self.log_insert("制表人内容已向左合并至A列，右对齐")
+                if config.get("clear_sign_rows", False):
+                    for c in range(1, last_col + 1):
+                        if c != maker_col:
+                            ws.range((maker_row, c)).value = None
+                    if maker_col > 1:
+                        content = str(maker_val).strip()
+                        merge_range = ws.range((maker_row, 1), (maker_row, maker_col))
+                        merge_range.merge()
+                        merge_range.value = content
+                        merge_range.api.HorizontalAlignment = -4152  # 右对齐
+                        self.log_insert("制表人内容已向左合并至A列，右对齐")
+                    else:
+                        ws.range((maker_row, maker_col)).api.HorizontalAlignment = -4152
+                        self.log_insert("制表人列在最左，无需合并")
                 else:
-                    ws.range((maker_row, maker_col)).api.HorizontalAlignment = -4152
-                    self.log_insert("制表人列在最左，无需合并")
+                    self.log_insert("clear_sign_rows=False，保持制表人行原样，不清空同行的其他签名文字")
 
             # 14. 文本替换（从配置读取替换规则）
             replacements = config.get("text_replacements", [])
