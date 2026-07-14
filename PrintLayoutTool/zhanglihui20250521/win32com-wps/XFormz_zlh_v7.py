@@ -638,7 +638,8 @@ class App:
                         ws.range((maker_row, maker_col)).api.HorizontalAlignment = -4152
                         self.log_insert("制表人列在最左，无需合并")
                 else:
-                    self.log_insert("clear_sign_rows=False，保持制表人行原样，不清空同行的其他签名文字")
+                    ws.range((maker_row, maker_col)).api.HorizontalAlignment = -4152
+                    self.log_insert("clear_sign_rows=False，保持制表人行原样，制表人单元格右对齐")
 
             # 14. 文本替换（从配置读取替换规则）
             replacements = config.get("text_replacements", [])
