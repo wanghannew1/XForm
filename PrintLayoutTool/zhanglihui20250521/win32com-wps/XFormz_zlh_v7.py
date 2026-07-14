@@ -80,7 +80,7 @@ class App:
     def __init__(self, root):
         self.root = root
         self.root.title("工资表打印格式批量调整工具")
-        self.root.geometry("700x800")
+        self.root.geometry("700x920")
         self.file_list = []
 
         tk.Label(root, text="待处理文件列表：(支持拖拽文件至此)", font=("微软雅黑", 10)).pack(anchor='w', padx=10, pady=5)
