@@ -493,7 +493,7 @@ class App:
             # 4. 删除列（判断空值时只到 table_end_row）
             # 改为只清空数据区域+隐藏列，不删除整列，以保留签名行（如"部长、分管副总签字："）
             delete_cols = self.get_columns_to_delete(ws, config, table_end_row, last_col)
-            hidden_cols = []
+            hidden_cols = set()
             for col_idx in sorted(delete_cols, reverse=True):
                 header_val = ws.range((header_row, col_idx)).value
                 col_name = str(header_val).strip() if header_val else self.index_to_column_letter(col_idx)
@@ -501,7 +501,7 @@ class App:
                 if col_idx <= last_col:
                     ws.range((header_row, col_idx), (table_end_row, col_idx)).value = None
                     ws.api.Columns(col_idx).Hidden = True
-                    hidden_cols.append(col_idx)
+                    hidden_cols.add(col_idx)
                     self.log_insert(f"已清空并隐藏列：{col_name}")
 
             if hidden_cols:
@@ -576,7 +576,7 @@ class App:
             else:
                 ws.range((header_row, 1), (header_row, data_end_col)).api.Font.Bold = True
 
-            # 11. 列宽设置
+            # 11. 列宽设置（跳过已隐藏的列，避免自动解除隐藏）
             id_col = self.find_column_by_header(ws, "身份证", header_row, last_col)
             if id_col is None:
                 for c in range(1, last_col + 1):
@@ -585,6 +585,8 @@ class App:
                         id_col = c
                         break
             for c in range(1, last_col + 1):
+                if c in hidden_cols:
+                    continue
                 if id_col and c == id_col:
                     ws.range((1, c), (last_row, c)).column_width = 20
                 else:
