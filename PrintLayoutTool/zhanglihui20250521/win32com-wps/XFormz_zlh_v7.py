@@ -32,7 +32,7 @@ HIDE_COLUMNS_CONFIG = {
     "header_row": 3,
     "enabled_modes": ["mode1", "mode2"],
     "mode1_columns": [],
-    "mode1_headers": ["实发合计"],
+    "mode1_headers": [],
     "mode2_columns": [],
     "mode2_headers": ["部门", "职工号", "交通补贴"],
     "clear_sign_rows": False,
