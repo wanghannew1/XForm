@@ -76,6 +76,31 @@
              fixed_source_columns.add(src)
              fixed_source_columns.add(tgt)
 
+【问题9】跨列字段表头解析产生重复条目
+--------------------------------------
+现象：跨列字段（如"身份证"右边跟着一个空列）被误判为第二列，
+     在 headers 中产生与主表头重复的条目
+根因：原逻辑"无子表头时直接 col_name = main_val_clean"，
+     把后续列也按主表头名追加，产生重复
+修复：
+  1. 有子表头才 append（拼接后的 col_name）
+  2. 仅当前列是 span 起始列（c == col_idx）且无子表头时，
+     才用 main_val_clean 作为列名
+  3. 其余后续列无子表头时直接跳过，避免产生重复条目
+
+【问题10】多列同名时身份证/姓名列被后者覆盖
+--------------------------------------
+现象：当源表中出现多列"身份证"/"姓名"时，
+     后面的同名列会覆盖前面的 id_card_col_idx / name_col_idx
+修复：在 if 条件中加 `and id_card_col_idx is None` / `and name_col_idx is None`，
+     只取第一个匹配列
+
+【问题11】FIELD_MAPPING 写入空值覆盖目标列
+--------------------------------------
+现象：固定列写入时不检查空值，源列空值会覆盖目标单元格
+修复：先 `value = data_row[col_idx]`，再 `if not has_value(value): continue`，
+     空值跳过、不写入
+
 ================================================================================
 """
 
@@ -735,10 +760,13 @@ def extract_source_headers(header_rows: List[List[Any]]) -> List[Tuple[str, int]
                         col_name = f"{main_val_clean}_{sub_val}_{third_val}"
                     else:
                         col_name = f"{main_val_clean}_{sub_val}"
-                else:
-                    col_name = main_val_clean
-                
-                headers.append((col_name, c))
+                    headers.append((col_name, c))
+                elif c == col_idx:
+                    # 跨列字段的第一列没有子表头时，直接使用主表头名
+                    # （这是实际数据所在列，如"身份证"右边跟着一个空列的情况）
+                    headers.append((main_val_clean, c))
+                # 其余后续列既没有子表头也没有第三级表头，则跳过
+                # 避免产生与主表头重复的条目（如"身份证"旁边的空列被误判为第二列）
         else:
             # 单列字段：直接使用主表头值
             headers.append((main_val, col_idx))
@@ -1201,9 +1229,9 @@ def convert_single_file(input_path: str, output_dir: str, phone_lookup: Dict[str
         id_card_col_idx = None
         name_col_idx = None
         for col_name, col_idx in source_headers:
-            if col_name in ('身份证', '证件号码'):
+            if col_name in ('身份证', '证件号码') and id_card_col_idx is None:
                 id_card_col_idx = col_idx
-            if col_name == '姓名':
+            if col_name == '姓名' and name_col_idx is None:
                 name_col_idx = col_idx
         
         # current_id_cards: 用于收集数据行中的证件号，后面与new_employees匹配
@@ -1239,9 +1267,12 @@ def convert_single_file(input_path: str, output_dir: str, phone_lookup: Dict[str
             for source_name, target_name in FIELD_MAPPING.items():
                 for col_name, col_idx in source_headers:
                     if col_name == source_name and col_idx < len(data_row):
+                        value = data_row[col_idx]
+                        if not has_value(value):
+                            continue
                         target_idx = field_index.get(target_name)  # dict.get(): 安全取值
                         if target_idx is not None:
-                            target_row[target_idx] = data_row[col_idx]
+                            target_row[target_idx] = value
             
             # 写入动态列和未知列数据
             for col_name, col_idx in source_headers:

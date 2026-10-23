@@ -8,13 +8,13 @@
 
 ```
 converter/
-├── 20260422/          # 最新版（功能最完整）
-├── staff_info/        # 员工信息格式转换工具（独立子工具）
-├── requirements.txt   # Python 依赖
+├── excel_converter_gui.py          # 主程序（GUI 版）
+├── excel_converter_gui-comment.py  # 带详细注释的同版本（含变更记录）
+├── runXinFuTong.ps1                # Windows 启动脚本
+├── staff_info/                     # 员工信息格式转换工具（独立子工具）
+├── requirements.txt                # Python 依赖
 └── README.md
 ```
-
-推荐使用 `20260422/excel_converter_gui.py`。
 
 ## 功能
 
@@ -34,7 +34,10 @@ converter/
 pip install -r requirements.txt
 
 # 运行
-python 20260422/excel_converter_gui.py
+python excel_converter_gui.py
+
+# 或使用 Windows 启动脚本
+powershell -ExecutionPolicy ByPass -c ".\runXinFuTong.ps1"
 ```
 
 ## 依赖

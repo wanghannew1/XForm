@@ -377,10 +377,13 @@ def extract_source_headers(header_rows: List[List[Any]]) -> List[Tuple[str, int]
                         col_name = f"{main_val_clean}_{sub_val}_{third_val}"
                     else:
                         col_name = f"{main_val_clean}_{sub_val}"
-                else:
-                    col_name = main_val_clean
-                
-                headers.append((col_name, c))
+                    headers.append((col_name, c))
+                elif c == col_idx:
+                    # 跨列字段的第一列没有子表头时，直接使用主表头名
+                    # （这是实际数据所在列，如"身份证"右边跟着一个空列的情况）
+                    headers.append((main_val_clean, c))
+                # 其余后续列既没有子表头也没有第三级表头，则跳过
+                # 避免产生与主表头重复的条目（如"身份证"旁边的空列被误判为第二列）
         else:
             # 单列字段
             headers.append((main_val, col_idx))
@@ -667,9 +670,9 @@ def convert_single_file(input_path: str, output_dir: str, phone_lookup: Dict[str
         id_card_col_idx = None
         name_col_idx = None
         for col_name, col_idx in source_headers:
-            if col_name in ('身份证', '证件号码'):
+            if col_name in ('身份证', '证件号码') and id_card_col_idx is None:
                 id_card_col_idx = col_idx
-            if col_name == '姓名':
+            if col_name == '姓名' and name_col_idx is None:
                 name_col_idx = col_idx
         
         current_id_cards = []
@@ -686,9 +689,12 @@ def convert_single_file(input_path: str, output_dir: str, phone_lookup: Dict[str
             for source_name, target_name in FIELD_MAPPING.items():
                 for col_name, col_idx in source_headers:
                     if col_name == source_name and col_idx < len(data_row):
+                        value = data_row[col_idx]
+                        if not has_value(value):
+                            continue
                         target_idx = field_index.get(target_name)
                         if target_idx is not None:
-                            target_row[target_idx] = data_row[col_idx]
+                            target_row[target_idx] = value
             
             for col_name, col_idx in source_headers:
                 if col_idx >= len(data_row):

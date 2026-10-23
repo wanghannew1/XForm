@@ -7,7 +7,9 @@
 ```
 xform/
 ├── converter/                    # 东软 → 薪福通 工资表格式转换工具
-│   ├── 20260422/                 # 最新版（功能最完整）
+│   ├── excel_converter_gui.py
+│   ├── excel_converter_gui-comment.py
+│   ├── runXinFuTong.ps1
 │   ├── staff_info/               # 员工信息格式转换工具（CSV→模板）
 │   ├── README.md
 │   └── requirements.txt
@@ -49,7 +51,7 @@ cd converter
 pip install -r requirements.txt
 
 # 运行
-python 20260422/excel_converter_gui.py
+python excel_converter_gui.py
 ```
 
 各工具的详细使用说明见对应子项目的 README.md。
