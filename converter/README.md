@@ -8,18 +8,13 @@
 
 ```
 converter/
-├── 20260408/          # v1 - 初始版本
-├── 20260413/          # v2 - 优化版本
-├── 20260415/          # v3 - 功能增强
-├── 20260420/          # v4 - 改进版本
-├── 20260421/          # v5 - 注释版 + 正式版
-├── 20260422/          # v6 - 最新版（功能最完整）
+├── 20260422/          # 最新版（功能最完整）
 ├── staff_info/        # 员工信息格式转换工具（独立子工具）
 ├── requirements.txt   # Python 依赖
 └── README.md
 ```
 
-每个日期目录为独立可运行的版本，推荐使用最新版 `20260422/excel_converter_gui.py`。
+推荐使用 `20260422/excel_converter_gui.py`。
 
 ## 功能
 
@@ -38,11 +33,8 @@ converter/
 # 安装依赖
 pip install -r requirements.txt
 
-# 运行（最新版）
+# 运行
 python 20260422/excel_converter_gui.py
-
-# 或运行其他版本
-python 20260408/excel_converter_gui.py
 ```
 
 ## 依赖
