@@ -674,8 +674,6 @@ class App:
                         id_col = c
                         break
             for c in range(1, last_col + 1):
-                if c in hidden_cols:
-                    continue
                 if id_col and c == id_col:
                     ws.range((1, c), (last_row, c)).column_width = 20
                 else:
