@@ -741,10 +741,10 @@ class App:
                         formula = None
                     if not (isinstance(formula, str) and formula.strip().startswith("=")):
                         continue
-                        val = cell.value
-                        if isinstance(val, (int, float)) and not isinstance(val, bool):
-                            if round(val, 2) != val:
-                                round_cells.append((r, c, str(formula), val))
+                    val = cell.value
+                    if isinstance(val, (int, float)) and not isinstance(val, bool):
+                        if round(val, 2) != val:
+                            round_cells.append((r, c, str(formula), val))
 
             if round_cells:
                 choice = self._ask_rounding_choice(file_path, round_cells)
