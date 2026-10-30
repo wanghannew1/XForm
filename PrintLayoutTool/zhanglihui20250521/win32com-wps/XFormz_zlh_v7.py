@@ -732,6 +732,8 @@ class App:
 
             # 新增：检查公式计算结果的金额精度，超过两位小数时提醒用户
             round_cells = []
+            formula_count = 0
+            self.log_insert(f"[金额精度检查] 范围：行{header_row + 1}~{table_end_row}，列1~{data_end_col}")
             for r in range(header_row + 1, table_end_row + 1):
                 for c in range(1, data_end_col + 1):
                     cell = ws.range((r, c))
@@ -741,10 +743,15 @@ class App:
                         formula = None
                     if not (isinstance(formula, str) and formula.strip().startswith("=")):
                         continue
+                    formula_count += 1
                     val = cell.value
+                    self.log_insert(f"[金额精度检查] 发现公式：第{r}行第{c}列 {formula} = {val}")
                     if isinstance(val, (int, float)) and not isinstance(val, bool):
                         if round(val, 2) != val:
                             round_cells.append((r, c, str(formula), val))
+                            self.log_insert(f"[金额精度检查] 超两位小数：第{r}行第{c}列 原值{val}")
+
+            self.log_insert(f"[金额精度检查] 共发现公式单元格 {formula_count} 个，其中超两位小数 {len(round_cells)} 个")
 
             if round_cells:
                 choice = self._ask_rounding_choice(file_path, round_cells)
