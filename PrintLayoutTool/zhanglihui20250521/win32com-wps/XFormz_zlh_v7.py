@@ -513,7 +513,17 @@ class App:
 
             header_row = config["header_row"]
 
-            # 2. 先确定数据区域结束行（排除最后三行）
+            # 2. 确定数据区域结束行（合计行）：
+            # 第一列序号为数字则属于数据区；一旦第一列不是数字（如“合计”），
+            # 该行即为合计行，即数据区结束。
+            table_end_row = last_row
+            for r in range(header_row + 1, last_row + 1):
+                val = ws.range((r, 1)).value
+                if not (isinstance(val, (int, float)) and not isinstance(val, bool)):
+                    table_end_row = r
+                    break
+
+            # 查找制表人行（用于签名行清空与制表人行处理）
             maker_row = None
             for r in range(last_row, max(1, last_row - 5), -1):
                 for c in range(1, last_col + 1):
@@ -525,11 +535,6 @@ class App:
                     break
             if not maker_row:
                 raise ValueError("未找到“制表人：”行，无法继续处理。")
-
-            # 数据区域结束行 = 合计行 = 制表人往上3行
-            table_end_row = maker_row - 3
-            if table_end_row < header_row:
-                table_end_row = header_row
 
             # 3. 清空倒数第2、3行
             clear_enabled = config.get("clear_sign_rows", False)
