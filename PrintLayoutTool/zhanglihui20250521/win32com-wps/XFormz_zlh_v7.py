@@ -506,7 +506,7 @@ class App:
                         self.log_insert(f"已清空第{clear_row}行")
 
             # 4. 真实删除整列（公式引用随删除自动调整，不会引用错列）
-            # 合计行及其以下的内容（如合计行锚点上的合计值、签名行）先快照，
+            # 被删列上的值先做快照（从表头行起，覆盖所有数据行与合计行及以下），
             # 删除后按 target = c - count(deleted < c) 映射写回（即右移到右侧列中保留）。
             # 注意：被删列若是合并区左上角锚点，WPS 引擎原生会丢弃锚点内容，
             # 因此合计行自身的合计值必须纳入快照，否则会随删列丢失。
@@ -515,7 +515,7 @@ class App:
             if delete_cols:
                 col_to_delete = set(delete_cols)
                 sorted_deleted = sorted(col_to_delete)
-                preserve_start_row = table_end_row
+                preserve_start_row = header_row
                 last_row_snapshot = ws.used_range.last_cell.row
                 snapshots = []  # (row, col, value) 仅记录被删列上的值/合并区左上角锚点值
                 for c in sorted_deleted:
@@ -536,7 +536,7 @@ class App:
                     target = col - sum(1 for d in sorted_deleted if d < col)
                     self.set_merged_cell_value(ws, row, target, val)
                     restored += 1
-                self.log_insert(f"合计行及以下内容已按右移映射恢复 {restored} 处")
+                self.log_insert(f"表头及合计行以下内容已按右移映射恢复 {restored} 处")
                 # 删除后刷新使用区域边界
                 ws.used_range
                 last_row = ws.used_range.last_cell.row
