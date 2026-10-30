@@ -148,19 +148,17 @@ class App:
         self.mode2_headers_var = tk.StringVar(value=",".join(self.config["mode2_headers"]))
         tk.Entry(mode2_frame, textvariable=self.mode2_headers_var, width=25).pack(side=tk.LEFT, padx=5)
 
-        # ---------- 签名行选项 ----------
-        sign_frame = tk.LabelFrame(hide_frame, text="签名行配置", padx=10, pady=5)
-        sign_frame.pack(fill=tk.X, pady=5)
+        # ---------- 签名行选项（与表格美化合并） ----------
         self.clear_sign_rows_var = tk.BooleanVar(value=self.config.get("clear_sign_rows", False))
-        tk.Checkbutton(sign_frame, text="清空签名行（合计行与制表人之间的总经理签字等提示词）",
-                       variable=self.clear_sign_rows_var, onvalue=True, offvalue=False).pack(anchor=tk.W)
 
-        # ---------- 表格美化选项 ----------
-        beauty_frame = tk.LabelFrame(root, text="表格美化", padx=10, pady=5)
-        beauty_frame.pack(fill=tk.X, padx=10, pady=5)
+        # ---------- 签名行与表格美化选项（并排） ----------
+        option_frame = tk.LabelFrame(root, text="签名行与表格美化", padx=10, pady=5)
+        option_frame.pack(fill=tk.X, padx=10, pady=5)
+        tk.Checkbutton(option_frame, text="清空签名行（合计行与制表人之间的总经理签字等提示词）",
+                       variable=self.clear_sign_rows_var, onvalue=True, offvalue=False).pack(side=tk.LEFT, padx=(0, 20))
         self.beautify_table_var = tk.BooleanVar(value=self.config.get("beautify_table", False))
-        tk.Checkbutton(beauty_frame, text="美化表格（边框加粗、列头加粗、数据区域字号与行高设置）",
-                       variable=self.beautify_table_var, onvalue=True, offvalue=False).pack(anchor=tk.W)
+        tk.Checkbutton(option_frame, text="美化表格（边框加粗、列头加粗、数据区域字号与行高设置）",
+                       variable=self.beautify_table_var, onvalue=True, offvalue=False).pack(side=tk.LEFT)
 
         # ---------- 页边距配置 ----------
         margin_frame = tk.LabelFrame(root, text="页边距设置", padx=10, pady=5)
