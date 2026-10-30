@@ -546,42 +546,48 @@ class App:
                         self.log_insert(f"已清空第{clear_row}行")
 
             # 4. 真实删除整列（公式引用随删除自动调整，不会引用错列）
-            # 模式1直接删除：数据行（表头下至合计行以上）的值随列一起彻底消失，不保留；
-            # 仅保护合计行（table_end_row）及以下的内容（如合计值、签名行），删除后按
-            # target = c - count(deleted < c) 映射写回（即右移到右侧列中保留）。
-            # 表头行不参与快照恢复，删除后自动左移，列名自然对齐。
+            # 模式1直接删除：
+            # - 数据行（表头下至合计行以上）：整列连同数据一起彻底消失，不保留
+            # - 合计行及以下（table_end_row 及以下）：被删列的值需保留，
+            #   删除后追加到表格右侧新增列中（不覆盖现有数据，列头加"_已删除"后缀）
             delete_cols = self.get_columns_to_delete(ws, config, last_col)
-            hidden_cols = set()
             if delete_cols:
                 col_to_delete = set(delete_cols)
                 sorted_deleted = sorted(col_to_delete)
-                # 只从合计行起保护，数据行值随列删除彻底消失，避免“只删列头、值留下”
-                preserve_start_row = max(header_row + 1, table_end_row)
-                last_row_snapshot = ws.used_range.last_cell.row
-                snapshots = []  # (row, col, value) 仅记录合计行及以下被删列上的值/合并区左上角锚点值
+
+                # 1) 先收集合计行及以下被删列的值
+                snapshots = []  # (row, col, val, header_name)
                 for c in sorted_deleted:
-                    for r in range(preserve_start_row, last_row_snapshot + 1):
-                        rng_api = ws.range((r, c)).api
-                        if rng_api.MergeCells and rng_api.MergeArea.Cells(1, 1).Address != rng_api.Address:
-                            continue  # 合并区非左上角，其值随合并区整体保留
+                    header_val = ws.range((header_row, c)).value
+                    header_name = str(header_val).strip() if header_val else self.index_to_column_letter(c)
+                    for r in range(table_end_row, last_row + 1):
                         val = ws.range((r, c)).value
                         if val is not None:
-                            snapshots.append((r, c, val))
+                            snapshots.append((r, c, val, header_name))
+
+                # 2) 逆序删除整列
                 for col_idx in sorted(col_to_delete, reverse=True):
                     header_val = ws.range((header_row, col_idx)).value
                     col_name = str(header_val).strip() if header_val else self.index_to_column_letter(col_idx)
                     ws.api.Columns(col_idx).Delete()
                     self.log_insert(f"已删除列：{col_name}")
-                restored = 0
-                for row, col, val in snapshots:
-                    target = col - sum(1 for d in sorted_deleted if d < col)
-                    self.set_merged_cell_value(ws, row, target, val)
-                    restored += 1
-                self.log_insert(f"合计行及以下内容已按右移映射恢复 {restored} 处")
-                # 删除后刷新使用区域边界
+
+                # 3) 删除后刷新边界
                 ws.used_range
                 last_row = ws.used_range.last_cell.row
                 last_col = ws.used_range.last_cell.column
+
+                # 4) 将快照数据追加到表格右侧新增列
+                if snapshots:
+                    for snap in snapshots:
+                        r, orig_c, val, header_name = snap
+                        new_col = last_col + 1
+                        ws.range((r, new_col)).value = val
+                        # 只在表头行写入列头（避免重复写入）
+                        if r == table_end_row:
+                            ws.range((header_row, new_col)).value = f"{header_name}_已删除"
+                        last_col = new_col
+                    self.log_insert(f"已将合计行及以下被删列数据追加到右侧新增列")
 
             # 重新确定 maker_row
             maker_row_updated = None
