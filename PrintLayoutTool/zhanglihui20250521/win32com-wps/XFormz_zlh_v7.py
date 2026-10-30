@@ -735,17 +735,24 @@ class App:
             round_cells = []
             numeric_count = 0
             self.log_insert(f"[金额精度检查] 范围：行{header_row + 1}~{table_end_row}，列1~{data_end_col}")
-            for r in range(header_row + 1, table_end_row + 1):
-                for c in range(1, data_end_col + 1):
-                    cell = ws.range((r, c))
-                    val = cell.value
+            # 批量一次性读取整个数据区域值，避免逐单元格 COM 调用导致缓慢
+            try:
+                raw_values = ws.range((header_row + 1, 1), (table_end_row, data_end_col)).value
+            except Exception:
+                raw_values = []
+            rows = list(raw_values) if raw_values else []
+            if rows and not isinstance(rows[0], list):
+                rows = [rows]
+            for r_idx, row_data in enumerate(rows):
+                r = header_row + 1 + r_idx
+                for c_idx, val in enumerate(row_data):
+                    c = 1 + c_idx
                     if not (isinstance(val, (int, float)) and not isinstance(val, bool)):
                         continue
                     numeric_count += 1
-                    self.log_insert(f"[金额精度检查] 发现数值：第{r}行第{c}列 {val}")
                     if round(val, 2) != val:
                         try:
-                            formula_str = str(cell.api.Formula or '')
+                            formula_str = str(ws.range((r, c)).api.Formula or '')
                         except Exception:
                             formula_str = ''
                         round_cells.append((r, c, formula_str, val))
