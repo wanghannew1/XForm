@@ -546,18 +546,38 @@ class App:
                         self.log_insert(f"已清空第{clear_row}行")
 
             # 4. 真实删除整列（公式引用随删除自动调整，不会引用错列）
-            # 模式1直接删除：整列连同表头和数据行一起彻底消失，不保留任何值；
-            # 右侧列自动左移，列名和数据自然对齐，不会出现“只删列头、值留下”或数据错位。
+            # 模式1直接删除：数据行（表头下至合计行以上）的值随列一起彻底消失，不保留；
+            # 仅保护合计行（table_end_row）及以下的内容（如合计值、签名行），删除后按
+            # target = c - count(deleted < c) 映射写回（即右移到右侧列中保留）。
+            # 表头行不参与快照恢复，删除后自动左移，列名自然对齐。
             delete_cols = self.get_columns_to_delete(ws, config, last_col)
             hidden_cols = set()
             if delete_cols:
                 col_to_delete = set(delete_cols)
-                # 逆序删除，避免列索引在删除过程中发生变化
+                sorted_deleted = sorted(col_to_delete)
+                # 只从合计行起保护，数据行值随列删除彻底消失，避免“只删列头、值留下”
+                preserve_start_row = max(header_row + 1, table_end_row)
+                last_row_snapshot = ws.used_range.last_cell.row
+                snapshots = []  # (row, col, value) 仅记录合计行及以下被删列上的值/合并区左上角锚点值
+                for c in sorted_deleted:
+                    for r in range(preserve_start_row, last_row_snapshot + 1):
+                        rng_api = ws.range((r, c)).api
+                        if rng_api.MergeCells and rng_api.MergeArea.Cells(1, 1).Address != rng_api.Address:
+                            continue  # 合并区非左上角，其值随合并区整体保留
+                        val = ws.range((r, c)).value
+                        if val is not None:
+                            snapshots.append((r, c, val))
                 for col_idx in sorted(col_to_delete, reverse=True):
                     header_val = ws.range((header_row, col_idx)).value
                     col_name = str(header_val).strip() if header_val else self.index_to_column_letter(col_idx)
                     ws.api.Columns(col_idx).Delete()
                     self.log_insert(f"已删除列：{col_name}")
+                restored = 0
+                for row, col, val in snapshots:
+                    target = col - sum(1 for d in sorted_deleted if d < col)
+                    self.set_merged_cell_value(ws, row, target, val)
+                    restored += 1
+                self.log_insert(f"合计行及以下内容已按右移映射恢复 {restored} 处")
                 # 删除后刷新使用区域边界
                 ws.used_range
                 last_row = ws.used_range.last_cell.row
