@@ -527,12 +527,21 @@ class App:
                         return False
                 return False
 
-            table_end_row = last_row
+            # 表头可能跨多行（合并单元格），第3列头以下的前几行第一列为空，
+            # 需要先跳过这些空行，找到第一行真正的数据行，再向后查找合计行。
+            data_start_row = None
             for r in range(header_row + 1, last_row + 1):
-                val = ws.range((r, 1)).value
-                if not is_number(val):
-                    table_end_row = r
+                if is_number(ws.range((r, 1)).value):
+                    data_start_row = r
                     break
+
+            table_end_row = last_row
+            if data_start_row is not None:
+                for r in range(data_start_row, last_row + 1):
+                    if not is_number(ws.range((r, 1)).value):
+                        table_end_row = r
+                        break
+            self.log_insert(f"数据起始行：{data_start_row}，合计行：{table_end_row}")
 
             # 查找制表人行（用于签名行清空与制表人行处理）
             maker_row = None
@@ -560,21 +569,19 @@ class App:
             # 模式1直接删除：
             # - 数据行（表头下至合计行以上）：整列连同数据一起彻底消失，不保留
             # - 合计行及以下（table_end_row 及以下）：被删列的值需保留，
-            #   删除后追加到表格右侧新增列中（不覆盖现有数据，列头加"_已删除"后缀）
+            #   删除后按删除后的列位写回原表格，不再追加到表格右侧
             delete_cols = self.get_columns_to_delete(ws, config, last_col)
             if delete_cols:
                 col_to_delete = set(delete_cols)
                 sorted_deleted = sorted(col_to_delete)
 
-                # 1) 先收集合计行及以下被删列的值
-                snapshots = []  # (row, col, val, header_name)
+                # 1) 先收集合计行及以下被删列的值（数据行不收集，随列删除）
+                snapshots = []  # (row, col, val)
                 for c in sorted_deleted:
-                    header_val = ws.range((header_row, c)).value
-                    header_name = str(header_val).strip() if header_val else self.index_to_column_letter(c)
                     for r in range(table_end_row, last_row + 1):
                         val = ws.range((r, c)).value
                         if val is not None:
-                            snapshots.append((r, c, val, header_name))
+                            snapshots.append((r, c, val))
 
                 # 2) 逆序删除整列
                 for col_idx in sorted(col_to_delete, reverse=True):
@@ -588,17 +595,15 @@ class App:
                 last_row = ws.used_range.last_cell.row
                 last_col = ws.used_range.last_cell.column
 
-                # 4) 将快照数据追加到表格右侧新增列
-                if snapshots:
-                    for snap in snapshots:
-                        r, orig_c, val, header_name = snap
-                        new_col = last_col + 1
-                        ws.range((r, new_col)).value = val
-                        # 只在表头行写入列头（避免重复写入）
-                        if r == table_end_row:
-                            ws.range((header_row, new_col)).value = f"{header_name}_已删除"
-                        last_col = new_col
-                    self.log_insert(f"已将合计行及以下被删列数据追加到右侧新增列")
+                # 4) 将合计行及以下的数据写回删除后的对应列，避免跑到表格右侧
+                restored = 0
+                for r, orig_c, val in snapshots:
+                    target_col = orig_c - sum(1 for d in sorted_deleted if d < orig_c)
+                    if 1 <= target_col <= last_col:
+                        self.set_merged_cell_value(ws, r, target_col, val)
+                        restored += 1
+                if restored:
+                    self.log_insert(f"已按删除后的列位恢复合计行及以下数据 {restored} 处")
 
             # 重新确定 maker_row
             maker_row_updated = None
