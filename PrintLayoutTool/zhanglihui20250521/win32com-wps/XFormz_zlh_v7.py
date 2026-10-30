@@ -40,7 +40,8 @@ HIDE_COLUMNS_CONFIG = {
     "right_margin_cm": 1.5,
     "text_replacements": [
         {"find": "部长、分管副总签字：", "replace": "分管领导审核："}
-    ]
+    ],
+    "beautify_table": False
 }
 
 def load_config():
@@ -154,6 +155,13 @@ class App:
         tk.Checkbutton(sign_frame, text="清空签名行（合计行与制表人之间的总经理签字等提示词）",
                        variable=self.clear_sign_rows_var, onvalue=True, offvalue=False).pack(anchor=tk.W)
 
+        # ---------- 表格美化选项 ----------
+        beauty_frame = tk.LabelFrame(root, text="表格美化", padx=10, pady=5)
+        beauty_frame.pack(fill=tk.X, padx=10, pady=5)
+        self.beautify_table_var = tk.BooleanVar(value=self.config.get("beautify_table", False))
+        tk.Checkbutton(beauty_frame, text="美化表格（边框加粗、列头加粗、数据区域字号与行高设置）",
+                       variable=self.beautify_table_var, onvalue=True, offvalue=False).pack(anchor=tk.W)
+
         # ---------- 页边距配置 ----------
         margin_frame = tk.LabelFrame(root, text="页边距设置", padx=10, pady=5)
         margin_frame.pack(fill=tk.X, padx=10, pady=5)
@@ -221,7 +229,8 @@ class App:
             "clear_sign_rows": self.clear_sign_rows_var.get(),
             "left_margin_cm": float(self.left_margin_var.get()),
             "right_margin_cm": float(self.right_margin_var.get()),
-            "text_replacements": self.replacements
+            "text_replacements": self.replacements,
+            "beautify_table": self.beautify_table_var.get(),
         }
         if self.mode1_enabled.get():
             config["enabled_modes"].append("mode1")
@@ -330,22 +339,16 @@ class App:
                 return col
         return None
 
-    def is_column_empty(self, ws, col_idx, start_row, end_row):
-        """检查列在指定行范围内是否为空（0、None、空白字符串均视为空）"""
-        for row in range(start_row, end_row + 1):
-            val = ws.range((row, col_idx)).value
-            if val is not None:
-                if isinstance(val, (int, float)) and val == 0:
-                    continue
-                if isinstance(val, str) and val.strip() == '':
-                    continue
-                return False
-        return True
+    def set_merged_cell_value(self, ws, row, col_idx, val):
+        """向指定行/列写入值；若该单元格位于合并区内，写入合并区左上角单元格"""
+        rng_api = ws.range((row, col_idx)).api
+        if rng_api.MergeCells:
+            rng_api.MergeArea.Cells(1, 1).Value = val
+        else:
+            rng_api.Value = val
 
-    def get_columns_to_delete(self, ws, config, data_end_row, last_col):
-        """
-        data_end_row: 数据区域结束行（合计行），检查空值时只到此行
-        """
+    def get_columns_to_delete(self, ws, config, last_col):
+        """根据处理配置返回需要真实删除的列号列表（不再按空值过滤）"""
         delete_list = []
         enabled_modes = config.get("enabled_modes", [])
         header_row = config["header_row"]
@@ -363,11 +366,11 @@ class App:
         if "mode2" in enabled_modes:
             for col_letter in config["mode2_columns"]:
                 col_idx = self.column_letter_to_index(col_letter)
-                if 1 <= col_idx <= last_col and self.is_column_empty(ws, col_idx, header_row + 1, data_end_row):
+                if 1 <= col_idx <= last_col:
                     delete_list.append(col_idx)
             for header in config["mode2_headers"]:
                 col_idx = self.find_column_by_header(ws, header, header_row, last_col)
-                if col_idx and col_idx not in delete_list and self.is_column_empty(ws, col_idx, header_row + 1, data_end_row):
+                if col_idx and col_idx not in delete_list:
                     delete_list.append(col_idx)
 
         return list(set(delete_list))
@@ -504,21 +507,39 @@ class App:
                         ws.range((clear_row, 1), (clear_row, last_col)).value = None
                         self.log_insert(f"已清空第{clear_row}行")
 
-            # 4. 删除列（判断空值时只到 table_end_row）
-            # 改为只清空数据区域+隐藏列，不删除整列，以保留签名行（如"部长、分管副总签字："）
-            delete_cols = self.get_columns_to_delete(ws, config, table_end_row, last_col)
+            # 4. 真实删除整列（公式引用随删除自动调整，不会引用错列）
+            # 合计行及其以下的内容（如合计行锚点上的合计值、签名行）先快照，
+            # 删除后按 target = c - count(deleted < c) 映射写回（即右移到右侧列中保留）。
+            # 注意：被删列若是合并区左上角锚点，WPS 引擎原生会丢弃锚点内容，
+            # 因此合计行自身的合计值必须纳入快照，否则会随删列丢失。
+            delete_cols = self.get_columns_to_delete(ws, config, last_col)
             hidden_cols = set()
-            for col_idx in sorted(delete_cols, reverse=True):
-                header_val = ws.range((header_row, col_idx)).value
-                col_name = str(header_val).strip() if header_val else self.index_to_column_letter(col_idx)
-                # 清空表头行到合计行的数据，保留合计行以下（签名行等）
-                if col_idx <= last_col:
-                    ws.range((header_row, col_idx), (table_end_row, col_idx)).value = None
-                    ws.api.Columns(col_idx).Hidden = True
-                    hidden_cols.add(col_idx)
-                    self.log_insert(f"已清空并隐藏列：{col_name}")
-
-            if hidden_cols:
+            if delete_cols:
+                col_to_delete = set(delete_cols)
+                sorted_deleted = sorted(col_to_delete)
+                preserve_start_row = table_end_row
+                last_row_snapshot = ws.used_range.last_cell.row
+                snapshots = []  # (row, col, value) 仅记录被删列上的值/合并区左上角锚点值
+                for c in sorted_deleted:
+                    for r in range(preserve_start_row, last_row_snapshot + 1):
+                        rng_api = ws.range((r, c)).api
+                        if rng_api.MergeCells and rng_api.MergeArea.Cells(1, 1).Address != rng_api.Address:
+                            continue  # 合并区非左上角，其值随合并区整体保留
+                        val = ws.range((r, c)).value
+                        if val is not None:
+                            snapshots.append((r, c, val))
+                for col_idx in sorted(col_to_delete, reverse=True):
+                    header_val = ws.range((header_row, col_idx)).value
+                    col_name = str(header_val).strip() if header_val else self.index_to_column_letter(col_idx)
+                    ws.api.Columns(col_idx).Delete()
+                    self.log_insert(f"已删除列：{col_name}")
+                restored = 0
+                for row, col, val in snapshots:
+                    target = col - sum(1 for d in sorted_deleted if d < col)
+                    self.set_merged_cell_value(ws, row, target, val)
+                    restored += 1
+                self.log_insert(f"合计行及以下内容已按右移映射恢复 {restored} 处")
+                # 删除后刷新使用区域边界
                 ws.used_range
                 last_row = ws.used_range.last_cell.row
                 last_col = ws.used_range.last_cell.column
@@ -579,17 +600,25 @@ class App:
             ws.api.Rows(1).RowHeight = 60
             ws.api.Rows(2).RowHeight = 20
 
-            # 9. 表格外框
-            table_range = ws.range((header_row, 1), (table_end_row, data_end_col))
-            table_range.api.BorderAround(Weight=4)
-            self.log_insert(f"表格粗外框：行{header_row}~{table_end_row}，列1~{data_end_col}")
+            beautify = config.get("beautify_table", False)
 
-            # 10. 列头加粗 (3~5)
-            if header_row == 3:
-                ws.range((3, 1), (5, data_end_col)).api.Font.Bold = True
-                self.log_insert("第3~5行列头已加粗")
+            # 9. 表格外框（美化选项）
+            if beautify:
+                table_range = ws.range((header_row, 1), (table_end_row, data_end_col))
+                table_range.api.BorderAround(Weight=4)
+                self.log_insert(f"表格粗外框：行{header_row}~{table_end_row}，列1~{data_end_col}")
             else:
-                ws.range((header_row, 1), (header_row, data_end_col)).api.Font.Bold = True
+                self.log_insert("未启用表格美化，跳过外框加粗")
+
+            # 10. 列头加粗（美化选项）
+            if beautify:
+                if header_row == 3:
+                    ws.range((3, 1), (5, data_end_col)).api.Font.Bold = True
+                    self.log_insert("第3~5行列头已加粗")
+                else:
+                    ws.range((header_row, 1), (header_row, data_end_col)).api.Font.Bold = True
+            else:
+                self.log_insert("未启用表格美化，跳过列头加粗")
 
             # 11. 列宽设置（跳过已隐藏的列，避免自动解除隐藏）
             id_col = self.find_column_by_header(ws, "身份证", header_row, last_col)
@@ -607,11 +636,14 @@ class App:
                 else:
                     ws.range((1, c), (last_row, c)).column_width = 9
 
-            # 12. 数据区域字号10，行高20
-            data_rng = ws.range((header_row + 1, 1), (table_end_row, data_end_col))
-            data_rng.api.Font.Size = 10
-            for r in range(header_row + 1, table_end_row + 1):
-                ws.api.Rows(r).RowHeight = 20
+            # 12. 数据区域字号10，行高20（美化选项）
+            if beautify:
+                data_rng = ws.range((header_row + 1, 1), (table_end_row, data_end_col))
+                data_rng.api.Font.Size = 10
+                for r in range(header_row + 1, table_end_row + 1):
+                    ws.api.Rows(r).RowHeight = 20
+            else:
+                self.log_insert("未启用表格美化，跳过数据区域字号与行高设置")
 
             # 13. 处理"制表人："行（仅当 clear_sign_rows 为 True 时合并清空，否则保留同行的其他签名文字）
             maker_col = None
