@@ -413,6 +413,41 @@ class App:
         thread.daemon = False
         thread.start()
 
+    def _ask_rounding_choice(self, file_path, round_cells):
+        """弹窗让用户选择金额精度处理方式，返回 'all_round'/'all_keep'/'each'/'cancel'"""
+        result = {"choice": None}
+        event = threading.Event()
+
+        def show_dialog():
+            msg = (
+                f"文件：{os.path.basename(file_path)}\n"
+                f"发现 {len(round_cells)} 处公式计算金额超过两位小数：\n\n"
+            )
+            for r, c, formula, val in round_cells[:10]:
+                msg += f"  第{r}行第{c}列：{val}\n"
+            if len(round_cells) > 10:
+                msg += f"\n... 共 {len(round_cells)} 处\n"
+            msg += "\n如何处理？"
+
+            choice = messagebox.askquestion(
+                "金额精度确认",
+                msg + "\n\n是 = 全部四舍五入保留两位小数\n否 = 全部保留原值\n取消 = 停止处理该文件",
+                icon="question",
+                type=messagebox.YESNOCANCEL,
+            )
+            if choice == "yes":
+                result["choice"] = "all_round"
+            elif choice == "no":
+                result["choice"] = "all_keep"
+            else:
+                result["choice"] = "cancel"
+            event.set()
+
+        # messagebox 必须在主线程调用，通过 after 调度；后台线程通过 Event 等待结果
+        self.root.after(0, show_dialog)
+        event.wait()
+        return result["choice"]
+
     def process_files(self, file_list, config):
         """后台处理线程，初始化 COM 接口"""
         # 在线程中初始化 COM（打包后必须）
@@ -694,6 +729,51 @@ class App:
                         break
                 if not found:
                     self.log_insert(f"提示：未找到'{find_text}'文本（可能已被清空）")
+
+            # 新增：检查公式计算结果的金额精度，超过两位小数时提醒用户
+            round_cells = []
+            for r in range(header_row + 1, table_end_row + 1):
+                for c in range(1, data_end_col + 1):
+                    cell = ws.range((r, c))
+                    try:
+                        formula = cell.api.Formula
+                    except Exception:
+                        formula = None
+                    if not (isinstance(formula, str) and formula.strip().startswith("=")):
+                        continue
+                        val = cell.value
+                        if isinstance(val, (int, float)) and not isinstance(val, bool):
+                            if round(val, 2) != val:
+                                round_cells.append((r, c, str(formula), val))
+
+            if round_cells:
+                choice = self._ask_rounding_choice(file_path, round_cells)
+                if choice == "cancel":
+                    self.log_insert("用户取消金额精度处理，保留原值")
+                elif choice == "all_round":
+                    for r, c, formula, val in round_cells:
+                        ws.range((r, c)).value = round(val, 2)
+                        self.log_insert(f"金额四舍五入：第{r}行第{c}列 {val} → {round(val, 2)}")
+                elif choice == "all_keep":
+                    self.log_insert("用户选择保留所有原始金额值")
+                elif choice == "each":
+                    for r, c, formula, val in round_cells:
+                        cell = ws.range((r, c))
+                        ans = messagebox.askyesnocancel(
+                            "金额精度确认",
+                            f"文件：{os.path.basename(file_path)}\n"
+                            f"位置：第{r}行 第{c}列\n"
+                            f"公式：{formula}\n"
+                            f"当前值：{val}\n\n"
+                            f"是否四舍五入保留两位小数？\n"
+                            f"（是=四舍五入，否=保留原值，取消=停止检查）"
+                        )
+                        if ans is True:
+                            cell.value = round(val, 2)
+                            self.log_insert(f"金额四舍五入：第{r}行第{c}列 {val} → {round(val, 2)}")
+                        elif ans is None:
+                            self.log_insert("用户停止金额精度检查")
+                            break
 
             # 15. 保存文件
             if os.path.exists(new_file_path):
