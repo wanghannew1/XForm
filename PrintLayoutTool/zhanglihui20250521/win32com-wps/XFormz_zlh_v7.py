@@ -514,12 +514,23 @@ class App:
             header_row = config["header_row"]
 
             # 2. 确定数据区域结束行（合计行）：
-            # 第一列序号为数字则属于数据区；一旦第一列不是数字（如“合计”），
+            # 第一列序号为数字（含字符串数字）则属于数据区；一旦第一列不是数字（如“合计”、文本或空），
             # 该行即为合计行，即数据区结束。
+            def is_number(val):
+                if isinstance(val, (int, float)) and not isinstance(val, bool):
+                    return True
+                if isinstance(val, str):
+                    try:
+                        float(val.strip())
+                        return True
+                    except ValueError:
+                        return False
+                return False
+
             table_end_row = last_row
             for r in range(header_row + 1, last_row + 1):
                 val = ws.range((r, 1)).value
-                if not (isinstance(val, (int, float)) and not isinstance(val, bool)):
+                if not is_number(val):
                     table_end_row = r
                     break
 
