@@ -541,9 +541,9 @@ class App:
                         self.log_insert(f"已清空第{clear_row}行")
 
             # 4. 真实删除整列（公式引用随删除自动调整，不会引用错列）
-            # 数据行（表头行下方）及合计行及以下的内容先做快照，
-            # 删除后按 target = c - count(deleted < c) 映射写回（即右移到右侧列中保留）。
-            # 表头行（第header_row行）不参与快照恢复，删除后自动左移，列名自然对齐。
+            # 模式1直接删除：数据行（表头下至合计行以上）的值随列一起消失，不保留；
+            # 仅保护合计行（table_end_row）及以下的内容，删除后按 target = c - count(deleted < c)
+            # 映射写回（即右移到右侧列中保留）。表头行不参与快照恢复，删除后自动左移，列名自然对齐。
             # 注意：被删列若是合并区左上角锚点，WPS 引擎原生会丢弃锚点内容，
             # 因此合计行自身的合计值必须纳入快照，否则会随删列丢失。
             delete_cols = self.get_columns_to_delete(ws, config, last_col)
@@ -551,7 +551,8 @@ class App:
             if delete_cols:
                 col_to_delete = set(delete_cols)
                 sorted_deleted = sorted(col_to_delete)
-                preserve_start_row = header_row + 1
+                # 只从合计行起保护，数据行值随列删除彻底消失，避免“只删列头、值留下”
+                preserve_start_row = max(header_row + 1, table_end_row)
                 last_row_snapshot = ws.used_range.last_cell.row
                 snapshots = []  # (row, col, value) 仅记录被删列上的值/合并区左上角锚点值
                 for c in sorted_deleted:
